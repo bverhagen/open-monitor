@@ -1,0 +1,23 @@
+[binaries]
+c = 'clang'
+cpp = 'clang++'
+c_ld = 'gold'
+cpp_ld = 'gold'
+strip = 'strip'
+pkgconfig = '/usr/bin/pkg-config'
+cmake = '/usr/bin/cmake'
+
+[host_machine]
+system = 'linux'
+cpu_family = '@ARCHITECTURE@'
+cpu = '@ARCHITECTURE@'
+endian = 'little'
+
+[properties]
+sys_root = '@SYSROOT@'
+
+[built-in options]
+c_args = ['--sysroot', '@SYSROOT@']
+c_link_args = ['--sysroot', '@SYSROOT@']
+cpp_args = ['--sysroot', '@SYSROOT@']
+cpp_link_args = ['--sysroot', '@SYSROOT@']

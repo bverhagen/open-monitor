@@ -1,0 +1,94 @@
+commands:
+    init: Initialize the build infrastructure
+    build: Build-only + install the project
+    build-only: Build the project binaries for the given MODE, COMPILER and TRIPLET
+    install: Install the project binaries for the given MODE, COMPILER and TRIPLET
+
+init:
+    - create-toolchain-file
+    - meson
+
+build:
+    - build-only
+    - install
+
+create-toolchain-file:
+    - command-line-command
+
+build-only:
+    - meson
+
+install:
+    - meson
+
+patterns:
+    COMPILER:
+        default-values:
+            - gcc
+            - clang
+        short-option: c
+        long-option: compiler
+
+    MODE:
+        default-values:
+            - debug
+            - release
+        short-option: m
+        long-option: mode
+
+    TRIPLET:
+        default-values:
+            - ""
+        long-option: triplet
+
+    ARCHITECTURE:
+        default-values:
+            - x86_64
+        long-option: arch
+
+meson:
+    patterns:
+        - COMPILER
+        - TRIPLET
+        - MODE
+        - EH_ROOT_DIR
+
+    source-dir: .
+    build-dir: "build/{TRIPLET}{COMPILER}/{MODE}/build"
+    build-type: "{MODE}"
+    prefix: "{EH_ROOT_DIR}/build/{TRIPLET}{COMPILER}/{MODE}/install"
+    cross-file: "build/{TRIPLET}{COMPILER}/{MODE}/cross-file.ini"
+
+    mode: setup
+
+    environment:
+        BOOST_ROOT: "{SYSROOT}/usr"
+
+    init:
+        options:
+            license-prefix: "{EH_ROOT_DIR}/build/{TRIPLET}{COMPILER}/{MODE}/install/share/exec-helper"
+        command-line: [--werror]
+
+    build-only:
+        mode: compile
+
+    install:
+        mode: install
+        command-line: [--only-changed, --no-rebuild]
+
+command-line-command:
+    create-toolchain-file:
+        patterns:
+            - COMPILER
+            - TRIPLET
+            - ARCHITECTURE
+            - SYSROOT
+            - MODE
+        command-line:
+            - create-build-dir: [ mkdir, -p, "build/{TRIPLET}{COMPILER}/{MODE}"]
+            - remove-toolchain-tmp: [ rm, -f, "build/{TRIPLET}{COMPILER}/{MODE}/cross-file.ini"]
+            - create-toolchain-tmp: [ cp, "crossfiles/{COMPILER}.ini.in", "build/{TRIPLET}{COMPILER}/{MODE}/cross-file.ini"]
+            - replace-triplet: [ sed, -i, 's%@TRIPLET@%{TRIPLET}%g', "build/{TRIPLET}{COMPILER}/{MODE}/cross-file.ini"]
+            - replace-compiler-family: [ sed, -i, 's%@COMPILER_FAMILY@%{COMPILER}%g', "build/{TRIPLET}{COMPILER}/{MODE}/cross-file.ini"]
+            - replace-sysroot: [ sed, -i, 's%@SYSROOT@%{SYSROOT}%g', "build/{TRIPLET}{COMPILER}/{MODE}/cross-file.ini"]
+            - replace-arch: [ sed, -i, 's%@ARCHITECTURE@%{ARCHITECTURE}%g', "build/{TRIPLET}{COMPILER}/{MODE}/cross-file.ini"]

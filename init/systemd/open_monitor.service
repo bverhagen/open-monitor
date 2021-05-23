@@ -1,0 +1,12 @@
+[Unit]
+Description=Open monitor video service
+After=network.target
+
+[Service]
+Type=simple
+ExecStart=open_monitor
+Restart=always
+LimitNOFILE=65536
+
+[Install]
+WantedBy=multi-user.target
