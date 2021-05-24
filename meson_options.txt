@@ -2,4 +2,4 @@ option('copyright', type: 'string', value: 'COPYRIGHT (c)', description: 'Set co
 option('license-prefix', type: 'string', value: '/usr/share/open-monitor', description: 'The directory to install the license to')
 
 option('systemd', type: 'feature', value: 'auto', description: 'Install the corresponding systemd service(s)')
-option('systemd-install-directory', type: 'string', value: '/opt/systemd/system'
+option('systemd-prefix', type: 'string', value: '/lib/systemd/system')

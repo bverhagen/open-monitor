@@ -1,0 +1,13 @@
+#!/bin/sh
+
+# Simple wrapper to tell pkgconf to behave as a platform-specific version of pkg-config
+# Platform: arm-linux-gnueabihf
+
+export PKG_CONFIG_SYSROOT_DIR=/opt/sysroot/raspbian
+export PKG_CONFIG_LIBDIR=${PKG_CONFIG_SYSROOT_DIR}/usr/share/pkgconfig
+export PKG_CONFIG_PATH=${PKG_CONFIG_SYSROOT_DIR}/usr/lib/arm-linux-gnueabihf/pkgconfig
+: ${PKG_CONFIG_SYSTEM_LIBRARY_PATH=/opt/sysroot/raspbian/usr/lib}
+: ${PKG_CONFIG_SYSTEM_INCLUDE_PATH=/opt/sysroot/raspbian/usr/include}
+export PKG_CONFIG_LIBDIR PKG_CONFIG_SYSTEM_LIBRARY_PATH PKG_CONFIG_SYSTEM_INCLUDE_PATH
+
+exec pkg-config "$@"

@@ -15,7 +15,9 @@ While the project is setup to be generic and easily portable, our current focus 
 
 Raspbian buster + Raspberry Pi camera installation
 --------------------------------------------------
-Open monitor uses the :code:`rpicamsrc` GStreamer plugin for acquiring data from the Raspberry Pi camera. However, most distributions - including Raspbian Buster - ship GStreamer without this plugin. If your distribution does ship with this plugin, we recommend to use the upstream version from your distribution and go directly to the open monitor build step. You can check whether your upstream distribution ships with this plugin by installing the gstreamer 1.x package and running :code:`gst-inspect-1.0 rpicamsrc`.
+Open monitor uses the :code:`rpicamsrc` GStreamer plugin for acquiring data from the Raspberry Pi camera. However, most distributions - including Raspbian Buster - ship GStreamer without this plugin. If your distribution does ship with this plugin, we recommend to use the upstream version from your distribution and go directly to the open monitor build step. You can check whether your upstream distribution ships with this plugin by installing the gstreamer 1.x package and running::
+
+    gst-inspect-1.0 rpicamsrc
 
 Build Gstreamer (with rpicamsrc plugin) from source
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -35,7 +37,7 @@ Build Gstreamer (with rpicamsrc plugin) from source
 
     git checkout 1.18.4
 
-5. Use meson to configure what you want to build. For a minimal GStreamer build, use::
+5. Use meson to configure what GStreamer features you want to build. For a minimal GStreamer build, use::
 
    meson -Dauto_features=disabled -Dugly=disabled -Dbad=enabled -Dgood=enabled -Dbase=enabled -Dgstreamer:tools=enabled -Dgst-plugins-good:rpicamsrc=enabled -Dgst-plugins-good:udp=enabled -Dgst-plugins-good:rtp=enabled -Dgst-plugins-good:rtpmanager=enabled -Dgst-plugins-bad:videoparsers=enabled -Dgst-plugins-bad:webrtc=enabled  -Dgst-plugins-base:typefind=enabled -Dlibnice=enabled -Dlibnice:gstreamer=enabled -Dintrospection=disabled -Dorc=enabled -Dgst-plugins-bad:dtls=enabled -Dgst-plugins-bad:srtp=enabled build
 
@@ -56,7 +58,7 @@ Build Open Monitor from source
 
 2. Configure the Open Monitor build::
 
-    meson setup --buildtype release build .
+    meson setup --buildtype release -D systemd=enabled build .
 
 3. Build Open Monitor::
 
@@ -73,7 +75,7 @@ Enable Open Monitor
 
     sudo systemctl start open_monitor.service
 
-2. Browse to `http://<your host>:57778`. After about 10 seconds, a video stream with your camera images should appear on the opened web page.
+2. Browse to `http://<your host>:57778`. After about 10 seconds, a video stream with your camera images should appear on the seamingly empty web page.
 
 3. If step 2 is not succesful, debug the problem using::
 

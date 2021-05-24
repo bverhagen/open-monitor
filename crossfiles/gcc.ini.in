@@ -1,11 +1,13 @@
+[constants]
+arch = '@TRIPLET@'
+
 [binaries]
-c = '@TRIPLET@gcc'
-cpp = '@TRIPLET@g++'
-strip = '@TRIPLET@strip'
+c = arch + 'gcc'
+cpp = arch + 'g++'
+strip = arch + 'strip'
 c_ld = 'gold'
 cpp_ld = 'gold'
-pkgconfig = '/usr/bin/pkg-config'
-cmake = '/usr/bin/cmake'
+pkgconfig = arch + 'pkg-config'
 
 [host_machine]
 system = 'linux'

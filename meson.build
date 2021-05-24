@@ -12,7 +12,7 @@ gst_dep = dependency('gstreamer-1.0',
     fallback : ['gstreamer', 'gst_dep'])
 gstwebrtc_dep = dependency('gstreamer-webrtc-1.0', version: '>= 1.14.0',
     fallback: ['gst-plugins-bad', 'gstwebrtc_dep'])
-gstsdp_dep = dependency('gstreamer-webrtc-1.0',
+gstsdp_dep = dependency('gstreamer-sdp-1.0',
     fallback : ['gst-plugins-bad', 'gstwebrtc_dep'])
 libsoup_dep = dependency('libsoup-2.4', version : '>=2.48',
     fallback : ['libsoup', 'libsoup_dep'])
@@ -31,5 +31,11 @@ summary({
 
 summary({
   'Copyright notice': get_option('copyright'),
-  'With systemd': get_option('systemd'),
+  'Systemd': get_option('systemd').enabled()
 }, section: 'Configuration', bool_yn: true)
+
+if get_option('systemd').enabled()
+  summary({
+    'Systemd prefix': get_option('systemd-prefix')
+  }, section: 'Systemd', bool_yn: true)
+endif

@@ -3,6 +3,9 @@ commands:
     build: Build-only + install the project
     build-only: Build the project binaries for the given MODE, COMPILER and TRIPLET
     install: Install the project binaries for the given MODE, COMPILER and TRIPLET
+    build-env: Build the virtual build environment
+    venv: Run the given COMMANDs in the virtual environment
+    dev-console: Open a development console in the virtual environment
 
 init:
     - create-toolchain-file
@@ -11,6 +14,15 @@ init:
 build:
     - build-only
     - install
+
+build-env:
+    - command-line-command
+
+venv:
+    - docker
+
+dev-console:
+    - docker
 
 create-toolchain-file:
     - command-line-command
@@ -46,6 +58,17 @@ patterns:
             - x86_64
         long-option: arch
 
+    SYSROOT:
+        default-values:
+            - '/'
+        long-option: sysroot
+
+    COMMAND:
+        default-values:
+            - build
+        short-option: a
+        long-option: cmd
+
 meson:
     patterns:
         - COMPILER
@@ -66,6 +89,8 @@ meson:
 
     init:
         options:
+            systemd: enabled
+            systemd-prefix: "{EH_ROOT_DIR}/build/{TRIPLET}{COMPILER}/{MODE}/install/lib/systemd/system"
             license-prefix: "{EH_ROOT_DIR}/build/{TRIPLET}{COMPILER}/{MODE}/install/share/exec-helper"
         command-line: [--werror]
 
@@ -76,7 +101,35 @@ meson:
         mode: install
         command-line: [--only-changed, --no-rebuild]
 
+docker:
+    patterns:
+        - COMMAND
+        - EH_ROOT_DIR
+
+    image: open-monitor:dev
+    mode: run
+    #container: open-monitor-dev
+    interactive: yes
+    tty: no
+    volumes:
+        - "{EH_ROOT_DIR}:{EH_ROOT_DIR}:ro"
+        - "{EH_ROOT_DIR}/build:{EH_ROOT_DIR}/build:rw"
+
+    command-line: ['--workdir={EH_ROOT_DIR}']
+
+    venv:
+        targets: "{COMMAND}"
+
+    dev-console:
+        mode: run
+        tty: yes
+        command-line: ['--rm', '--workdir={EH_ROOT_DIR}', '--name=open-monitor-dev']
+        command: bash
+
 command-line-command:
+    build-env:
+        command-line: [ docker, build, --tag, "open-monitor:dev", docker/build]
+
     create-toolchain-file:
         patterns:
             - COMPILER
