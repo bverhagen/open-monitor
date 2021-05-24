@@ -16,6 +16,7 @@ RUN apt-get update && \
         libgstreamer-plugins-bad1.0-dev \
         libsoup2.4-dev \
         libjson-glib-dev \
+        libglibmm-2.4-dev \
     && apt-get clean --yes && rm -rf /var/lib/apt/lists/*
 
 # Prepare Raspbian sysroot

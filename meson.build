@@ -18,6 +18,7 @@ libsoup_dep = dependency('libsoup-2.4', version : '>=2.48',
     fallback : ['libsoup', 'libsoup_dep'])
 json_glib_dep = dependency('json-glib-1.0',
     fallback : ['json-glib', 'json_glib_dep'])
+glibmm_dep = dependency('glibmm-2.4')
 
 install_data('LICENSE', install_dir : get_option('license-prefix'))
 
