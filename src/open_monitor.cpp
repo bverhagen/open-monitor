@@ -29,9 +29,25 @@ using namespace std;
 
 constexpr auto soupHttpPort = 57778U;
 
+shared_ptr<GstElement> pipeline;
+
+template<typename T>
+inline auto make_unique_gobject(T* object) noexcept {
+    g_assert_nonnull(object);
+
+    return unique_ptr<T, function<void(T*)>>(
+        object,
+        [](auto ptr) {
+            gst_object_unref(ptr);
+        }
+    );
+}
+
+template<typename T>
+using unique_gobject_ptr = unique_ptr<T, function<void(T*)>>;
+
 // Everything in this extern "C" scope is untouched code from the webrtc_unidirectional_h264 example
 extern "C" {
-#define RTP_PAYLOAD_TYPE "96"
 #define RTP_AUDIO_PAYLOAD_TYPE "97"
 
 #ifdef G_OS_WIN32
@@ -46,8 +62,7 @@ extern "C" {
 
     typedef struct _ReceiverEntry ReceiverEntry;
 
-    ReceiverEntry *create_receiver_entry (SoupWebsocketConnection * connection);
-    void destroy_receiver_entry (gpointer receiver_entry_ptr);
+    ReceiverEntry *create_receiver_entry (SoupWebsocketConnection * connection, GstElement* pipeline);
 
     void on_offer_created_cb (GstPromise * promise, gpointer user_data);
     void on_negotiation_needed_cb (GstElement * webrtcbin, gpointer user_data);
@@ -62,9 +77,6 @@ extern "C" {
     void soup_http_handler (SoupServer * soup_server, SoupMessage * message,
         const char *path, GHashTable * query, SoupClientContext * client_context,
         gpointer user_data);
-    void soup_websocket_handler (G_GNUC_UNUSED SoupServer * server,
-        SoupWebsocketConnection * connection, const char *path,
-        SoupClientContext * client_context, gpointer user_data);
 
     static gchar *get_string_from_json_object (JsonObject * object);
 
@@ -72,7 +84,6 @@ extern "C" {
     {
       SoupWebsocketConnection *connection;
 
-      GstElement *pipeline;
       GstElement *webrtcbin;
     };
 
@@ -140,117 +151,46 @@ extern "C" {
       //return GST_WEBRTC_PRIORITY_TYPE_VERY_LOW;
     //}
 
-    ReceiverEntry *
-    create_receiver_entry (SoupWebsocketConnection * connection)
-    {
-      GError *error;
-      GstWebRTCRTPTransceiver *trans;
-      GArray *transceivers;
-      GstBus *bus;
 
-      auto receiver_entry = static_cast<ReceiverEntry*>(g_slice_alloc0 (sizeof (ReceiverEntry)));
-      receiver_entry->connection = connection;
+    //void
+    //destroy_receiver_entry (gpointer receiver_entry_ptr)
+    //{
+        //ReceiverEntry *receiver_entry = (ReceiverEntry *) receiver_entry_ptr;
 
-      g_object_ref (G_OBJECT (connection));
+        //g_assert (receiver_entry != NULL);
 
-      g_signal_connect (G_OBJECT (connection), "message",
-          G_CALLBACK (soup_websocket_message_cb), (gpointer) receiver_entry);
+        //gst_bin_remove (GST_BIN (pipeline), webrtc);
+        //gst_object_unref (webrtc);
 
-      error = NULL;
-      receiver_entry->pipeline =
-          gst_parse_launch ("webrtcbin name=webrtcbin "
-          "rpicamsrc exposure-mode=night annotation-mode=512 ! video/x-h264,width=1920,height=1080,framerate=3/1 ! queue ! h264parse ! "
-          "rtph264pay config-interval=-1 name=payloader aggregate-mode=zero-latency ! "
-          "application/x-rtp,media=video,encoding-name=H264,payload="
-          RTP_PAYLOAD_TYPE " ! webrtcbin. "
-    /*      "autoaudiosrc is-live=1 ! queue max-size-buffers=1 leaky=downstream ! audioconvert ! audioresample ! opusenc ! rtpopuspay pt="
-          RTP_AUDIO_PAYLOAD_TYPE " ! webrtcbin. "*/, &error);
-      if (error != NULL) {
-        g_error ("Could not create WebRTC pipeline: %s\n", error->message);
-        g_error_free (error);
-        goto cleanup;
-      }
+        //qname = g_strdup_printf ("queue-%s", peer_id);
+        //q = gst_bin_get_by_name (GST_BIN (pipeline), qname);
+        //g_free (qname);
 
-      receiver_entry->webrtcbin =
-          gst_bin_get_by_name (GST_BIN (receiver_entry->pipeline), "webrtcbin");
-      g_assert (receiver_entry->webrtcbin != NULL);
+        //sinkpad = gst_element_get_static_pad (q, "sink");
+        //g_assert_nonnull (sinkpad);
+        //srcpad = gst_pad_get_peer (sinkpad);
+        //g_assert_nonnull (srcpad);
+        //gst_object_unref (sinkpad);
 
-      g_signal_emit_by_name (receiver_entry->webrtcbin, "get-transceivers",
-          &transceivers);
-      g_assert (transceivers != NULL && transceivers->len > 0);
-      trans = g_array_index (transceivers, GstWebRTCRTPTransceiver *, 0);
-      g_object_set (trans, "direction",
-          GST_WEBRTC_RTP_TRANSCEIVER_DIRECTION_SENDONLY, NULL);
-      //if (video_priority) {
-        //GstWebRTCPriorityType priority;
+        //gst_bin_remove (GST_BIN (pipeline), q);
+        //gst_object_unref (q);
 
-        //priority = _priority_from_string (video_priority);
-        //if (priority) {
-          //GstWebRTCRTPSender *sender;
+        //tee = gst_bin_get_by_name (GST_BIN (pipeline), "videotee");
+        //g_assert_nonnull (tee);
+        //gst_element_release_request_pad (tee, srcpad);
+        //gst_object_unref (srcpad);
+        //gst_object_unref (tee);
 
-          //g_object_get (trans, "sender", &sender, NULL);
-          //gst_webrtc_rtp_sender_set_priority (sender, priority);
-          //g_object_unref (sender);
+        //if (receiver_entry->webrtcbin != NULL) {
+            //gst_object_unref (GST_OBJECT (receiver_entry->webrtcbin));
         //}
-      //}
-      trans = g_array_index (transceivers, GstWebRTCRTPTransceiver *, 1);
-      g_object_set (trans, "direction",
-          GST_WEBRTC_RTP_TRANSCEIVER_DIRECTION_SENDONLY, NULL);
-      //if (audio_priority) {
-        //GstWebRTCPriorityType priority;
 
-        //priority = _priority_from_string (audio_priority);
-        //if (priority) {
-          //GstWebRTCRTPSender *sender;
-
-          //g_object_get (trans, "sender", &sender, NULL);
-          //gst_webrtc_rtp_sender_set_priority (sender, priority);
-          //g_object_unref (sender);
+        //if (receiver_entry->connection != NULL) {
+            //g_object_unref (G_OBJECT (receiver_entry->connection));
         //}
-      //}
-      g_array_unref (transceivers);
 
-      g_signal_connect (receiver_entry->webrtcbin, "on-negotiation-needed",
-          G_CALLBACK (on_negotiation_needed_cb), (gpointer) receiver_entry);
-
-      g_signal_connect (receiver_entry->webrtcbin, "on-ice-candidate",
-          G_CALLBACK (on_ice_candidate_cb), (gpointer) receiver_entry);
-
-      bus = gst_pipeline_get_bus (GST_PIPELINE (receiver_entry->pipeline));
-      gst_bus_add_watch (bus, bus_watch_cb, NULL);
-      gst_object_unref (bus);
-
-      if (gst_element_set_state (receiver_entry->pipeline, GST_STATE_PLAYING) ==
-          GST_STATE_CHANGE_FAILURE)
-        g_error ("Could not start pipeline");
-
-      return receiver_entry;
-
-    cleanup:
-      destroy_receiver_entry ((gpointer) receiver_entry);
-      return NULL;
-    }
-
-    void
-    destroy_receiver_entry (gpointer receiver_entry_ptr)
-    {
-      ReceiverEntry *receiver_entry = (ReceiverEntry *) receiver_entry_ptr;
-
-      g_assert (receiver_entry != NULL);
-
-      if (receiver_entry->pipeline != NULL) {
-        gst_element_set_state (GST_ELEMENT (receiver_entry->pipeline),
-            GST_STATE_NULL);
-
-        gst_object_unref (GST_OBJECT (receiver_entry->webrtcbin));
-        gst_object_unref (GST_OBJECT (receiver_entry->pipeline));
-      }
-
-      if (receiver_entry->connection != NULL)
-        g_object_unref (G_OBJECT (receiver_entry->connection));
-
-      g_slice_free1 (sizeof (ReceiverEntry), receiver_entry);
-    }
+        //g_slice_free1 (sizeof (ReceiverEntry), receiver_entry);
+    //}
 
 
     void
@@ -511,25 +451,6 @@ extern "C" {
       soup_message_set_status (message, SOUP_STATUS_OK);
     }
 
-
-    void
-    soup_websocket_handler (G_GNUC_UNUSED SoupServer * server,
-        SoupWebsocketConnection * connection, G_GNUC_UNUSED const char *path,
-        G_GNUC_UNUSED SoupClientContext * client_context, gpointer user_data)
-    {
-      ReceiverEntry *receiver_entry;
-      GHashTable *receiver_entry_table = (GHashTable *) user_data;
-
-      gst_print ("Processing new websocket connection %p", (gpointer) connection);
-
-      g_signal_connect (G_OBJECT (connection), "closed",
-          G_CALLBACK (soup_websocket_closed_cb), (gpointer) receiver_entry_table);
-
-      receiver_entry = create_receiver_entry (connection);
-      g_hash_table_replace (receiver_entry_table, connection, receiver_entry);
-    }
-
-
     static gchar *
     get_string_from_json_object (JsonObject * object)
     {
@@ -549,17 +470,6 @@ extern "C" {
       return text;
     }
 
-#ifdef G_OS_UNIX
-    gboolean
-    exit_sighandler (gpointer user_data)
-    {
-      gst_print ("Caught signal, stopping mainloop\n");
-      GMainLoop *mainloop = (GMainLoop *) user_data;
-      g_main_loop_quit (mainloop);
-      return TRUE;
-    }
-#endif
-
 
     //static GOptionEntry entries[] = {
       //{"video-priority", 0, 0, G_OPTION_ARG_STRING, &video_priority,
@@ -573,10 +483,117 @@ extern "C" {
 
 }
 
-int
-main (int argc, char** argv)
+inline void testPadLink(unique_gobject_ptr<GstPad> src, unique_gobject_ptr<GstPad> sink) {
+    auto ret = gst_pad_link(src.get(), sink.get());
+    if(ret != GST_PAD_LINK_OK) {
+        throw runtime_error("Erroneous padlink!");
+    }
+}
+
+ReceiverEntry* create_receiver_entry(SoupWebsocketConnection* connection, GstElement* pipeline) {
+    auto receiver_entry = static_cast<ReceiverEntry*>(g_slice_alloc0 (sizeof (ReceiverEntry)));
+    receiver_entry->connection = connection;
+    g_object_ref (G_OBJECT (connection));
+
+    g_signal_connect (G_OBJECT (connection), "message",
+        G_CALLBACK (soup_websocket_message_cb), (gpointer) receiver_entry);
+
+    gst_print ("Attaching webrtcbin... (%p)\n", static_cast<void*>(receiver_entry));
+    auto queueName = g_strdup_printf("queue-%p", static_cast<void*>(receiver_entry));
+    auto q = gst_element_factory_make ("queue", queueName);
+    g_free(queueName);
+
+    receiver_entry->webrtcbin = gst_element_factory_make ("webrtcbin", NULL);
+
+    gst_bin_add_many (GST_BIN (pipeline), q, receiver_entry->webrtcbin, NULL);
+
+    testPadLink(
+        make_unique_gobject(gst_element_get_static_pad(q, "src")),
+        make_unique_gobject(gst_element_get_request_pad(receiver_entry->webrtcbin, "sink_%u"))
+    );
+
+    auto tee = make_unique_gobject(gst_bin_get_by_name(GST_BIN(pipeline), "videotee"));
+    testPadLink(
+        make_unique_gobject(gst_element_get_request_pad(tee.get(), "src_%u")),
+        make_unique_gobject(gst_element_get_static_pad(q, "sink"))
+    );
+
+    cout << "Attached webrtcbin! (" << connection << ")" << endl;
+
+    GArray *transceivers;
+    g_signal_emit_by_name (receiver_entry->webrtcbin, "get-transceivers",
+          &transceivers);
+    g_assert (transceivers != NULL && transceivers->len > 0);
+    auto trans = g_array_index (transceivers, GstWebRTCRTPTransceiver *, 0);
+    g_object_set (trans, "direction",
+        GST_WEBRTC_RTP_TRANSCEIVER_DIRECTION_SENDONLY, NULL);
+    g_array_unref (transceivers);
+
+    g_signal_connect (receiver_entry->webrtcbin, "on-negotiation-needed",
+        G_CALLBACK (on_negotiation_needed_cb), (gpointer) receiver_entry);
+
+    g_signal_connect (receiver_entry->webrtcbin, "on-ice-candidate",
+        G_CALLBACK (on_ice_candidate_cb), (gpointer) receiver_entry);
+
+    /* Set to pipeline branch to PLAYING */
+    auto ret2 = gst_element_sync_state_with_parent (q);
+    g_assert_true (ret2);
+    ret2 = gst_element_sync_state_with_parent (receiver_entry->webrtcbin);
+    g_assert_true (ret2);
+
+    return receiver_entry;
+}
+
+void destroy_receiver_entry(gpointer receiver_entry_ptr) {
+    ReceiverEntry* receiver_entry = static_cast<ReceiverEntry*>(receiver_entry_ptr);
+
+    g_assert (receiver_entry != nullptr);
+
+    gst_element_set_state(receiver_entry->webrtcbin, GST_STATE_NULL);
+    gst_bin_remove(GST_BIN(pipeline.get()), receiver_entry->webrtcbin);
+    gst_object_unref(receiver_entry->webrtcbin);
+
+    auto qname = g_strdup_printf("queue-%p", static_cast<void*>(receiver_entry_ptr));
+    auto q = make_unique_gobject(gst_bin_get_by_name(GST_BIN(pipeline.get()), qname));
+    gst_element_set_state(q.get(), GST_STATE_NULL);
+    g_free(qname);
+
+    auto sinkpad = make_unique_gobject(gst_element_get_static_pad(q.get(), "sink"));
+    auto srcpad = make_unique_gobject(gst_pad_get_peer(sinkpad.get()));
+
+    gst_bin_remove(GST_BIN(pipeline.get()), q.get());
+
+    auto tee = make_unique_gobject(gst_bin_get_by_name(GST_BIN(pipeline.get()), "videotee"));
+    gst_element_release_request_pad(tee.get(), srcpad.get());
+
+    if (receiver_entry->connection != NULL) {
+        g_object_unref (G_OBJECT (receiver_entry->connection));
+    }
+
+    g_slice_free1 (sizeof (ReceiverEntry), receiver_entry);
+}
+
+void
+soup_websocket_handler (G_GNUC_UNUSED SoupServer * server,
+    SoupWebsocketConnection * connection, G_GNUC_UNUSED const char *path,
+    G_GNUC_UNUSED SoupClientContext * client_context, gpointer user_data)
+{
+    ReceiverEntry *receiver_entry;
+    GHashTable *receiver_entry_table = (GHashTable *) user_data;
+
+    cout << "Processing new websocket connection " << connection << endl;
+
+    g_signal_connect (G_OBJECT (connection), "closed",
+        G_CALLBACK (soup_websocket_closed_cb), (gpointer) receiver_entry_table);
+
+    receiver_entry = create_receiver_entry (connection, pipeline.get());
+    g_hash_table_replace (receiver_entry_table, connection, receiver_entry);
+}
+
+int main (int argc, char** argv)
 {
     Glib::init();
+    gst_init(&argc, &argv);
 
     Glib::OptionGroup initialOptionGroup(gst_init_get_option_group());
 
@@ -604,8 +621,35 @@ main (int argc, char** argv)
     );
 
     auto mainLoop = Glib::MainLoop::create(false);
-    g_unix_signal_add (SIGINT, exit_sighandler, mainLoop->gobj());
-    g_unix_signal_add (SIGTERM, exit_sighandler, mainLoop->gobj());
+
+    GError* error = nullptr;
+    pipeline = unique_ptr<GstElement, std::function<void(GstElement*)>>(
+          gst_parse_launch ("tee name=videotee ! queue ! fakesink "
+          "rpicamsrc exposure-mode=night annotation-mode=512 ! video/x-h264,width=1920,height=1080,framerate=3/1 ! queue ! h264parse ! "
+          "rtph264pay config-interval=-1 name=payloader aggregate-mode=zero-latency ! "
+          "application/x-rtp,media=video,encoding-name=H264,payload=96 ! videotee. "
+    /*      "autoaudiosrc is-live=1 ! queue max-size-buffers=1 leaky=downstream ! audioconvert ! audioresample ! opusenc ! rtpopuspay pt="
+          RTP_AUDIO_PAYLOAD_TYPE " ! webrtcbin. "*/, &error),
+          [](auto pipeline) {
+                gst_element_set_state (GST_ELEMENT(pipeline), GST_STATE_NULL);
+                gst_object_unref(GST_OBJECT(pipeline));
+          }
+    );
+
+    if (error != nullptr) {
+        cerr << "Could not create WebRTC pipeline: " << error->message << endl;
+        g_error_free (error);
+        return EXIT_FAILURE;
+    }
+
+    auto bus = gst_pipeline_get_bus(GST_PIPELINE(pipeline.get()));
+    gst_bus_add_watch (bus, bus_watch_cb, NULL);
+    gst_object_unref (bus);
+
+    if (gst_element_set_state(pipeline.get(), GST_STATE_PLAYING) == GST_STATE_CHANGE_FAILURE) {
+        cerr << "Could not start pipeline" << endl;
+        return EXIT_FAILURE;
+    }
 
     auto soup_server = unique_ptr<SoupServer, std::function<void(SoupServer*)>>(
         soup_server_new (SOUP_SERVER_SERVER_HEADER, "open-monitor-soup-server", nullptr),
@@ -620,6 +664,8 @@ main (int argc, char** argv)
     cout << "WebRTC page link: http://127.0.0.1:" << soupHttpPort << endl;
 
     mainLoop->run();
+
+    cout << "Stopped mainloop" << endl;
 
     gst_deinit ();
 

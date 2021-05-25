@@ -11,8 +11,6 @@ Open monitor is an extremely lightweight, webRTC-based monitoring solution. On t
 
 While the project is setup to be generic and easily portable, our current focus is on fully supporting all Raspberry pi's connected to raspberry pi camera's.
 
-*Note:* Currently, only one concurrent connection is possible. The server crashes on multiple concurrent ones.
-
 Raspbian buster + Raspberry Pi camera installation
 --------------------------------------------------
 Open monitor uses the :code:`rpicamsrc` GStreamer plugin for acquiring data from the Raspberry Pi camera. However, most distributions - including Raspbian Buster - ship GStreamer without this plugin. If your distribution does ship with this plugin, we recommend to use the upstream version from your distribution and go directly to the open monitor build step. You can check whether your upstream distribution ships with this plugin by installing the gstreamer 1.x package and running::
