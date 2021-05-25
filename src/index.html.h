@@ -73,12 +73,12 @@ const char* html_source = R"====(
 
 
       function playStream(videoElement, hostname, port, path, configuration, reportErrorCB) {
-        var l = window.location;\n \
+        var l = window.location;
         var wsHost = (hostname != undefined) ? hostname : l.hostname;
         var wsPort = (port != undefined) ? port : l.port;
         var wsPath = (path != undefined) ? path : "ws";
-        if (wsPort) \n\
-          wsPort = ":" + wsPort; \n\
+        if (wsPort)
+          wsPort = ":" + wsPort;
         var wsUrl = "ws://" + wsHost + wsPort + "/" + wsPath;
 
         html5VideoElement = videoElement;
