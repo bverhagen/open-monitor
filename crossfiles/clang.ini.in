@@ -15,6 +15,7 @@ endian = 'little'
 
 [properties]
 sys_root = '@SYSROOT@'
+boost_root = sys_root + '/usr'
 
 [built-in options]
 c_args = ['--sysroot', '@SYSROOT@']

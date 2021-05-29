@@ -3,17 +3,18 @@ commands:
     build: Build-only + install the project
     build-only: Build the project binaries for the given MODE, COMPILER and TRIPLET
     install: Install the project binaries for the given MODE, COMPILER and TRIPLET
-    build-env: Build the virtual build environment
+    build-env: Build the virtual build environment for the given ARCHITECTURE
     venv: Run the given COMMANDs in the virtual environment
     dev-console: Open a development console in the virtual environment
+    language-server: Run the language server for this project in the virtual environment
+    lang-serv: Run the language server in the host environment
 
 init:
     - create-toolchain-file
     - meson
 
 build:
-    - build-only
-    - install
+    - install   # Install will automatically build missing parts
 
 build-env:
     - command-line-command
@@ -22,6 +23,9 @@ venv:
     - docker
 
 dev-console:
+    - docker
+
+language-server:
     - docker
 
 create-toolchain-file:
@@ -33,17 +37,20 @@ build-only:
 install:
     - meson
 
+lang-serv:
+    - command-line-command
+
 patterns:
     COMPILER:
         default-values:
             - gcc
-            - clang
+            #- clang
         short-option: c
         long-option: compiler
 
     MODE:
         default-values:
-            - debug
+            #- debug
             - release
         short-option: m
         long-option: mode
@@ -51,22 +58,26 @@ patterns:
     TRIPLET:
         default-values:
             - ""
+            #- arm-linux-gnueabihf-
         long-option: triplet
 
     ARCHITECTURE:
         default-values:
             - x86_64
+            #- raspbian
         long-option: arch
+        short-option: a
 
     SYSROOT:
         default-values:
-            - '/'
+            - /
+            #- /opt/sysroot/raspbian
         long-option: sysroot
 
     COMMAND:
         default-values:
             - build
-        short-option: a
+        short-option: b
         long-option: cmd
 
 meson:
@@ -99,14 +110,15 @@ meson:
 
     install:
         mode: install
-        command-line: [--only-changed, --no-rebuild]
+        command-line: [--only-changed]
 
 docker:
     patterns:
         - COMMAND
+        - ARCHITECTURE
         - EH_ROOT_DIR
 
-    image: open-monitor:dev
+    image: "open-monitor/dev:{ARCHITECTURE}"
     mode: run
     #container: open-monitor-dev
     interactive: yes
@@ -114,21 +126,26 @@ docker:
     volumes:
         - "{EH_ROOT_DIR}:{EH_ROOT_DIR}:ro"
         - "{EH_ROOT_DIR}/build:{EH_ROOT_DIR}/build:rw"
+        - "{EH_ROOT_DIR}/subprojects:{EH_ROOT_DIR}/subprojects:rw"
 
-    command-line: ['--workdir={EH_ROOT_DIR}']
+    command-line: ['--rm', '--workdir={EH_ROOT_DIR}']
 
     venv:
         targets: "{COMMAND}"
 
     dev-console:
-        mode: run
         tty: yes
-        command-line: ['--rm', '--workdir={EH_ROOT_DIR}', '--name=open-monitor-dev']
+        command-line: ['--rm', '--workdir={EH_ROOT_DIR}', '--name=open-monitor-{ARCHITECTURE}']
         command: bash
+
+    language-server:
+        targets: lang-serv
 
 command-line-command:
     build-env:
-        command-line: [ docker, build, --tag, "open-monitor:dev", docker/build]
+        patterns:
+            - ARCHITECTURE
+        command-line: [ docker, build, "--tag=open-monitor/dev:{ARCHITECTURE}", "docker/build/{ARCHITECTURE}"]
 
     create-toolchain-file:
         patterns:
@@ -145,3 +162,10 @@ command-line-command:
             - replace-compiler-family: [ sed, -i, 's%@COMPILER_FAMILY@%{COMPILER}%g', "build/{TRIPLET}{COMPILER}/{MODE}/cross-file.ini"]
             - replace-sysroot: [ sed, -i, 's%@SYSROOT@%{SYSROOT}%g', "build/{TRIPLET}{COMPILER}/{MODE}/cross-file.ini"]
             - replace-arch: [ sed, -i, 's%@ARCHITECTURE@%{ARCHITECTURE}%g', "build/{TRIPLET}{COMPILER}/{MODE}/cross-file.ini"]
+
+    lang-serv:
+        patterns:
+            - COMPILER
+            - TRIPLET
+            - MODE
+        command-line: [clangd, "--compile-commands-dir=build/{TRIPLET}{COMPILER}/{MODE}/build"]
