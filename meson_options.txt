@@ -1,5 +1,12 @@
 option('copyright', type: 'string', value: 'COPYRIGHT (c)', description: 'Set copyright message')
 option('license-prefix', type: 'string', value: '/usr/share/open-monitor', description: 'The directory to install the license to')
+option('conf-prefix', type: 'string', value: '/etc/open-monitor', description: 'The directory to install the system-wide configuration to')
 
 option('systemd', type: 'feature', value: 'auto', description: 'Install the corresponding systemd service(s)')
 option('systemd-prefix', type: 'string', value: '/lib/systemd/system')
+
+option('use-system-lua', type: 'feature', value: 'auto', description: 'Use your system lua installation instead of the integrated upstream one')
+option('use-static-boost', type: 'boolean', value: 'false', description: 'Build and link statically with Boost')
+
+option('install-examples', type: 'boolean', value: 'true', description: 'Install example configurations')
+option('example-config-prefix', type: 'string', value: '/usr/share/doc/open-monitor/example_configs', description: 'Directory to install example configurations to')

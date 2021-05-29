@@ -19,11 +19,29 @@ libsoup_dep = dependency('libsoup-2.4', version : '>=2.48',
 json_glib_dep = dependency('json-glib-1.0',
     fallback : ['json-glib', 'json_glib_dep'])
 glibmm_dep = dependency('glibmm-2.4')
+boost_dep = dependency('boost', version: '>=1.67.0', static: get_option('use-static-boost'))
+boost_program_options_dep = dependency('boost', modules: ['program_options'], static: get_option('use-static-boost'))
+
+lua_dep = dependency('lua-5.3', required: get_option('use-system-lua'))
+if not lua_dep.found()
+  lua_proj = subproject('lua', default_options: ['default_library=static', 'werror=false'])
+  lua_dep = lua_proj.get_variable('lua_dep')
+endif
+
+luawrapper = declare_dependency(
+  include_directories: ['3rdparty/luawrapper'],
+  dependencies: lua_dep,
+)
 
 install_data('LICENSE', install_dir : get_option('license-prefix'))
+install_data('default_config.lua', rename : 'open-monitor.conf', install_dir : get_option('conf-prefix'))
 
 subdir('src')
 subdir('init')
+
+if get_option('install-examples')
+  subdir('example_configs')
+endif
 
 summary({
   'Prefix': get_option('prefix'),

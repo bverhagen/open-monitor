@@ -29,7 +29,7 @@ aptsources=Raspbian
 bootstrap=Raspbian
 
 [Raspbian]
-packages=libglib2.0-dev libgstreamer1.0-dev libgstreamer-plugins-base1.0-dev libgstreamer-plugins-bad1.0-dev libsoup2.4-dev libjson-glib-dev libglibmm-2.4-dev libboost-dev
+packages=libglib2.0-dev libgstreamer1.0-dev libgstreamer-plugins-base1.0-dev libgstreamer-plugins-bad1.0-dev libsoup2.4-dev libjson-glib-dev libglibmm-2.4-dev libboost-dev libboost-program-options-dev
 source=http://raspbian.raspberrypi.org/raspbian/
 suite=buster main contrib non-free rpi
 omitdebsrc=true

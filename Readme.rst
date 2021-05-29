@@ -11,6 +11,56 @@ Open monitor is an extremely lightweight, webRTC-based monitoring solution. On t
 
 While the project is setup to be generic and easily portable, our current focus is on fully supporting all Raspberry pi's connected to raspberry pi camera's.
 
+Configuration
+-------------
+Open monitor is configurable through a configuration file in lua format. By default it checks for a configuration file in `/etc/open-monitor.conf`, but this can be overriden by using the `--config` command-line option.
+
+The following options can be configured:
+
+- *port*: The port on which to offer the HTML video page and the associated webRTC stream.
+- *pipelines*: The GStreamer pipeline to use for generating the video and/or audio webRTC stream. Currently only one pipeline can be defined. The result of the configured pipeline must be compatible with GStreamer's `webrtcbin <https://gstreamer.freedesktop.org/documentation/webrtc/index.html>`_. Make sure all pipeline elements from your configured pipeline are available in the GStreamer installation on your target. The default config shows a test src for checking whether Open Monitor works on your system. Check the `example_configs` directory for preconfigured configurations for common setups.
+
+Installation
+------------
+Build Open Monitor from source
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+1. Install required upstream packages::
+
+    sudo apt-get update && sudo apt-get install --yes build-essential meson ninja-build
+
+2. Configure the Open Monitor build::
+
+    meson setup --buildtype release -D systemd=enabled build .
+
+3. Build Open Monitor::
+
+    ninja -C build
+
+4. Install Open Monitor::
+
+    sudo ninja -C build install
+
+Enable Open Monitor
+~~~~~~~~~~~~~~~~~~~
+
+1. Start Open Monitor::
+
+    sudo systemctl start open_monitor.service
+
+2. Browse to `http://<your host>:57778`. After a few seconds, a video stream with your camera images should appear on the seamingly empty web page. For running complex pipelines or on slower targets, you may need to wait longer.
+
+3. If step 2 is not succesful, debug the problem using::
+
+    sudo journalctl -eu open_monitor.service
+
+4. If step 2 is succesful, enable Open Monitor to start at boot::
+
+    sudo systemstl enable open_monitor.service
+
+5. Happy monitoring!
+
+
 Raspbian buster + Raspberry Pi camera installation
 --------------------------------------------------
 Open monitor uses the :code:`rpicamsrc` GStreamer plugin for acquiring data from the Raspberry Pi camera. However, most distributions - including Raspbian Buster - ship GStreamer without this plugin. If your distribution does ship with this plugin, we recommend to use the upstream version from your distribution and go directly to the open monitor build step. You can check whether your upstream distribution ships with this plugin by installing the gstreamer 1.x package and running::
@@ -49,38 +99,8 @@ Build Gstreamer (with rpicamsrc plugin) from source
 
 Build Open Monitor from source
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-1. Install required upstream packages::
-
-    sudo apt-get update && sudo apt-get install --yes build-essential meson ninja-build
-
-2. Configure the Open Monitor build::
-
-    meson setup --buildtype release -D systemd=enabled build .
-
-3. Build Open Monitor::
-
-    ninja -C build
-
-4. Install Open Monitor::
-
-    sudo ninja -C build install
+Follow the guide in the  `installation` chapter.
 
 Enable Open Monitor
 ~~~~~~~~~~~~~~~~~~~
-
-1. Start Open Monitor::
-
-    sudo systemctl start open_monitor.service
-
-2. Browse to `http://<your host>:57778`. After about 10 seconds, a video stream with your camera images should appear on the seamingly empty web page.
-
-3. If step 2 is not succesful, debug the problem using::
-
-    sudo journalctl -eu open_monitor.service
-
-4. If step 2 is succesful, enable Open Monitor to start at boot::
-
-    sudo systemstl enable open_monitor.service
-
-5. Happy monitoring!
+Follow the guide in the `installation` chapter.

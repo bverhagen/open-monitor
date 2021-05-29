@@ -8,7 +8,9 @@ deps = [
     gstwebrtc_dep,
     libsoup_dep,
     json_glib_dep,
-    glibmm_dep
+    glibmm_dep,
+    luawrapper,
+    boost_program_options_dep
 ]
 
 babyfoon = executable('open_monitor', src,

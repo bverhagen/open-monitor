@@ -15,22 +15,29 @@ extern "C" {
 #include <json-glib/json-glib.h>
 }
 
+#include <cstdint>
+#include <filesystem>
+#include <fstream>
 #include <memory>
 #include <iostream>
+#include <utility>
+#include <vector>
 
+#include <boost/program_options.hpp>
 #include <glibmm/convert.h>
 #include <glibmm/init.h>
 #include <glibmm/main.h>
 #include <glibmm/optioncontext.h>
 
+#include <LuaContext.hpp>
+
 #include "index.html.h"
 
 using namespace std;
 
-constexpr auto soupHttpPort = 57778U;
+namespace options = boost::program_options;
 
-shared_ptr<GstElement> pipeline;
-
+namespace  {
 template<typename T>
 inline auto make_unique_gobject(T* object) noexcept {
     g_assert_nonnull(object);
@@ -45,6 +52,15 @@ inline auto make_unique_gobject(T* object) noexcept {
 
 template<typename T>
 using unique_gobject_ptr = unique_ptr<T, function<void(T*)>>;
+
+auto pipeline = unique_gobject_ptr<GstElement>(
+    nullptr,
+    [](auto pipeline) {
+        gst_element_set_state (GST_ELEMENT(pipeline), GST_STATE_NULL);
+        gst_object_unref(GST_OBJECT(pipeline));
+    }
+);
+} // namespace
 
 // Everything in this extern "C" scope is untouched code from the webrtc_unidirectional_h264 example
 extern "C" {
@@ -590,29 +606,9 @@ soup_websocket_handler (G_GNUC_UNUSED SoupServer * server,
     g_hash_table_replace (receiver_entry_table, connection, receiver_entry);
 }
 
-int main (int argc, char** argv)
-{
-    Glib::init();
-    gst_init(&argc, &argv);
+using Pipelines = vector<string>;
 
-    Glib::OptionGroup initialOptionGroup(gst_init_get_option_group());
-
-    auto context = Glib::OptionContext("Open monitor");
-    context.add_group(initialOptionGroup);
-
-    try {
-       if(! context.parse(argc, argv)) {
-            cerr << "Error parsing command line arguments!" << endl;
-            return EXIT_FAILURE;
-       }
-    } catch(const Glib::OptionError& e) {
-        cerr << "Error parsing command line option: " << e.what();
-        return EXIT_FAILURE;
-    } catch(const Glib::ConvertError& e) {
-        cerr << "Error parsing command line option: " << e.what();
-        return EXIT_FAILURE;
-    }
-
+void run(uint16_t port, Pipelines&& capturePipelines) {
     auto receiver_entry_table = unique_ptr<GHashTable, std::function<void(GHashTable*)>>(
         g_hash_table_new_full(g_direct_hash, g_direct_equal, nullptr, destroy_receiver_entry),
         [](auto table) {
@@ -620,26 +616,20 @@ int main (int argc, char** argv)
         }
     );
 
-    auto mainLoop = Glib::MainLoop::create(false);
+    try {
+        cout << "Creating pipeline..." << endl;
+        GError* error = nullptr;
+        auto totalPipeline = string("tee name=videotee ! queue ! fakesink ").append(capturePipelines.front()).append(" ! videotee.");
 
-    GError* error = nullptr;
-    pipeline = unique_ptr<GstElement, std::function<void(GstElement*)>>(
-          gst_parse_launch ("tee name=videotee ! queue ! fakesink "
-          "rpicamsrc exposure-mode=night annotation-mode=512 ! video/x-h264,width=1920,height=1080,framerate=3/1 ! queue ! h264parse ! "
-          "rtph264pay config-interval=-1 name=payloader aggregate-mode=zero-latency ! "
-          "application/x-rtp,media=video,encoding-name=H264,payload=96 ! videotee. "
-    /*      "autoaudiosrc is-live=1 ! queue max-size-buffers=1 leaky=downstream ! audioconvert ! audioresample ! opusenc ! rtpopuspay pt="
-          RTP_AUDIO_PAYLOAD_TYPE " ! webrtcbin. "*/, &error),
-          [](auto pipeline) {
-                gst_element_set_state (GST_ELEMENT(pipeline), GST_STATE_NULL);
-                gst_object_unref(GST_OBJECT(pipeline));
-          }
-    );
+        cout << "Pipeline = " << totalPipeline << endl;
+        pipeline.reset(gst_parse_launch(totalPipeline.c_str(), &error));
 
-    if (error != nullptr) {
-        cerr << "Could not create WebRTC pipeline: " << error->message << endl;
-        g_error_free (error);
-        return EXIT_FAILURE;
+        if (error != nullptr) {
+            g_error_free (error);
+            throw runtime_error(string("Could not create WebRTC pipeline: ") + error->message);
+        }
+    } catch(const out_of_range& e) {
+        throw runtime_error("The pipeline in the config has an invalid format. It must be a lua list of pipelines.");
     }
 
     auto bus = gst_pipeline_get_bus(GST_PIPELINE(pipeline.get()));
@@ -647,9 +637,10 @@ int main (int argc, char** argv)
     gst_object_unref (bus);
 
     if (gst_element_set_state(pipeline.get(), GST_STATE_PLAYING) == GST_STATE_CHANGE_FAILURE) {
-        cerr << "Could not start pipeline" << endl;
-        return EXIT_FAILURE;
+        throw runtime_error("Could not start pipeline");
     }
+
+    auto mainLoop = Glib::MainLoop::create(false);
 
     auto soup_server = unique_ptr<SoupServer, std::function<void(SoupServer*)>>(
         soup_server_new (SOUP_SERVER_SERVER_HEADER, "open-monitor-soup-server", nullptr),
@@ -659,15 +650,79 @@ int main (int argc, char** argv)
     );
     soup_server_add_handler(soup_server.get(), "/", soup_http_handler, NULL, NULL);
     soup_server_add_websocket_handler(soup_server.get(), "/ws", nullptr, nullptr, soup_websocket_handler, receiver_entry_table.get(), nullptr);
-    soup_server_listen_all(soup_server.get(), soupHttpPort, SoupServerListenOptions(), nullptr);
+    soup_server_listen_all(soup_server.get(), port, SoupServerListenOptions(), nullptr);
 
-    cout << "WebRTC page link: http://127.0.0.1:" << soupHttpPort << endl;
+    cout << "Monitor page link: http://<host>:" << port << endl;
 
     mainLoop->run();
 
     cout << "Stopped mainloop" << endl;
+}
 
+int main (int argc, char** argv)
+{
+    filesystem::path config = "/etc/open-monitor.conf";
+
+    options::options_description desc("Allowed options");
+    desc.add_options()
+        ("h,help", "produce help message")
+        ("c,config", options::value(&config), "Set configuration path")
+    ;
+
+    options::variables_map vm;
+    options::store(options::parse_command_line(argc, argv, desc), vm);
+    options::notify(vm);
+
+    if (vm.count("help")) {
+        cout << desc << endl;
+        return EXIT_SUCCESS;
+    }
+
+    cout << "Using configuration file " << config << endl;
+
+    LuaContext lua;
+    try {
+        ifstream executionCode(config);
+        lua.executeCode(executionCode);
+    } catch(const LuaContext::SyntaxErrorException& e) {
+        cerr << "Syntax error detected in conf file '" << config << "': " << e.what() << endl;
+        return EXIT_FAILURE;
+    } catch(const LuaContext::ExecutionErrorException& e) {
+        cerr << e.what() << endl;
+        return EXIT_FAILURE;
+    } catch(const std::runtime_error& e) {
+        cerr << e.what() << endl;
+        return EXIT_FAILURE;
+    }
+
+    auto port = lua.readVariable<uint16_t>("port");
+    auto capturePipelines = lua.readVariable<vector<pair<int, string>>>("pipelines");
+    if(capturePipelines.empty()) {
+        cerr << "You must define at least one gstreamer pipeline in your config!" << endl;
+        return EXIT_FAILURE;
+    }
+    if(capturePipelines.size() > 1) {
+        cerr << "Open monitor currently only supports one pipeline in your config!" << endl;
+        return EXIT_FAILURE;
+    }
+
+    vector<string> pipelines;
+    pipelines.reserve(capturePipelines.size());
+    transform(capturePipelines.begin(), capturePipelines.end(), back_inserter(pipelines), [](auto&& pipeline) {
+        return pipeline.second;
+    });
+
+
+    Glib::init();
+    gst_init(&argc, &argv);
+
+    try {
+        run(port, move(pipelines));
+    } catch(const exception& e) {
+        gst_deinit ();
+        cerr << "Failed running open monitor: " << e.what() << endl;
+        return EXIT_FAILURE;
+    }
     gst_deinit ();
-
     return EXIT_SUCCESS;
 }

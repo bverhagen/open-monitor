@@ -103,6 +103,9 @@ meson:
             systemd: enabled
             systemd-prefix: "{EH_ROOT_DIR}/build/{TRIPLET}{COMPILER}/{MODE}/install/lib/systemd/system"
             license-prefix: "{EH_ROOT_DIR}/build/{TRIPLET}{COMPILER}/{MODE}/install/share/exec-helper"
+            conf-prefix: "{EH_ROOT_DIR}/build/{TRIPLET}{COMPILER}/{MODE}/install/etc/"
+            install-examples: true
+            example-config-prefix: "{EH_ROOT_DIR}/build/{TRIPLET}{COMPILER}/{MODE}/install/share/doc/open-monitor/example_configs"
         command-line: [--werror]
 
     build-only:
